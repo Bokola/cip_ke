@@ -8,12 +8,8 @@ Files listed below will be key for curation and experimental design.
     ## ├── No of tuber seeds Season 2024-2025.xlsx
     ## ├── R.Rproj
     ## ├── randomize-season-2025.R
-    ## ├── README.html
     ## ├── README.md
     ## ├── README.Rmd
-    ## ├── README_files
-    ## │   └── figure-markdown_strict
-    ## │       └── pressure-1.png
     ## └── seasonal-report.qmd
 
 -   `data-checks.R`: data curation
@@ -24,3 +20,4 @@ Files listed below will be key for curation and experimental design.
 
 You need to have [pbwrangler](https://bokola.github.io/pbwrangler/)
 installed and load key libraries called in each of the .R or .qmd files.
+(pbwrangler source on github)\[<https://github.com/Bokola/pbwrangler>\]
