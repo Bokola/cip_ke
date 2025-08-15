@@ -23,4 +23,5 @@ dir_tree()
 - `seasonal-report.qmd`: Report on each season's data
 
 You need to have [pbwrangler](https://bokola.github.io/pbwrangler/) installed and load key libraries called in each of the .R or .qmd files.
-(pbwrangler source on github)[https://github.com/Bokola/pbwrangler]
+
+[pbwrangler source on github](https://github.com/Bokola/pbwrangler)

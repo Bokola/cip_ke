@@ -20,4 +20,5 @@ Files listed below will be key for curation and experimental design.
 
 You need to have [pbwrangler](https://bokola.github.io/pbwrangler/)
 installed and load key libraries called in each of the .R or .qmd files.
-(pbwrangler source on github)\[<https://github.com/Bokola/pbwrangler>\]
+
+[pbwrangler source on github](https://github.com/Bokola/pbwrangler)
