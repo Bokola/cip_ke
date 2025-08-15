@@ -1,5 +1,5 @@
 ---
-title: "SG data report"
+title: "Handing over"
 format: 
   revealjs:
     embed-resources: true
@@ -8,140 +8,185 @@ format:
 editor: visual
 editor_options: 
   chunk_output_type: console
-params:
-  season: "Season 2024-2025"
 ---
 
-```{r}
-#| label: setup
-#| include: false
-#| cache: false
+# Data curation
 
-knitr::opts_chunk$set(fig.pos = 'H')
+- You need to have a filled-in meta-data excel file within `Data/` folder of specific season
 
-if (!require(glmsummary)) devtools::install_github("Bokola/glmsummary")
-if (!require(pbwrangler)) devtools::install_github("Bokola/pbwrangler")
-pks <- c(
-  "pbwrangler",
-  "rlang",
-  "glue",
-  "tidyverse",
-  "readxl",
-  "janitor",
-  "here",
-  "gtsummary",
-  "kableExtra",
-  "gt",
-  "flextable",
-  "officer",
-  "cowplot"
-  ,"flextable"
-  ,"kableExtra"
-  ,"officer"
-)
-install_load_packages(pks)
+- Load necessary libraries
 
-data("family_code")
+```r
+if(!require(pbwrangler)) devtools::install_github("Bokola/pbwrangler")
 
-table_counter <- 1
-# table captions
-autonum <- run_autonum(seq_id = "tab", bkm = "cip")
+library(purrr)
+library(ids)
+library(pbwrangler)
+library(readxl)
+library(writexl)
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(logr)
+library(st4gi)
 ```
 
-```{r}
-# change depending on season of interest
-# season <- "Season 2024-2025"
+---
 
-```
+- A curation workflow is as follows - here `season 2025`:
+- Read data and meta data
 
-```{r}
-meta_24_25 <- read_excel(
-  list.files(file.path(t_dir, "Season 2024-2025", "Data", "meta-data"), full.names = TRUE)
+```r
+season  = "Season 2025"
+meta <- read_excel(
+  list.files(file.path(t_dir, season, "Data", "meta-data"),
+             full.names = TRUE)[1]
 )
 
-meta_24_25_lst <- split(meta_24_25, meta_24_25$trial_name)
+meta_lst <- split(meta, meta$trial_name)
 
-season_24_25_a <- pbwrangler::read_workbooks(
+season_a <- pbwrangler::read_workbooks(
   dir = t_dir,
-  season = "Season 2024-2025",
+  season = season,
   read_subfolder = TRUE,
   sub_folder = "Received data",
-  subset = TRUE,
-  n = c(1, 4:9, 12),
-  # n = 12,
-  multiple = TRUE,
-  merge = TRUE
-)
-
-season_24_25_b <- pbwrangler::read_workbooks(
-  dir = t_dir,
-  season = "Season 2024-2025",
-  read_subfolder = TRUE,
-  sub_folder = "Received data",
-  subset = TRUE,
-  n = c(2, 10:11),
-  # n = 3,
-  multiple = FALSE,
-  merge = FALSE
-)
-
-season_24_25 <- c(season_24_25_a, season_24_25_b)
-
-test_trial <- c("KE24NJO-BIO-IT01")
-
-# calculated 
-
-season_24_25_c<- pbwrangler::read_workbooks(
-  dir = t_dir,
-  season = "Season 2024-2025",
-  read_subfolder = TRUE,
-  sub_folder = "Received data/SG-calculated",
   subset = FALSE,
-  # n = c(2, 10:11),
-  # n = 3,
+  # n = c(4:9),
+  # n = 6,
   multiple = FALSE,
-  merge = FALSE
+  merge = FALSE,
+  update_plot = FALSE
 )
 
-test_a <- season_24_25[[test_trial]] %>% select(plot, weight_g_total)
-test_b <- season_24_25_c[[test_trial]] %>% 
-  select(plot, "weight_g_total_c"= weight_g_total)
-
-test <- left_join(test_a, test_b)
-test <- test %>% mutate(
-  cor = cor(weight_g_total, weight_g_total_c),
-  diff = weight_g_total_c - weight_g_total
-)
-test <- test %>% mutate(ind = diff > 0)
-caption <- paste0("cor: ", round(unique(test$cor),2))
-title <- "Weight diffence (g)"
- p <- test %>% ggplot(aes(x = plot, y = diff, fill = ind)) + geom_col() +
-   scale_y_continuous(breaks = seq(-1000, 4000, 1000)) +
-   ylab("calculated - observed (weight)")
- 
- p <- my_theme(plot = p,
-               caption = caption,
-               title = title,
-               legend_pos = "off") +
-   theme(axis.title.x=element_blank(),
-         axis.text.x=element_blank(),
-         axis.ticks.x=element_blank())
 ```
-
-
-
-# Updates
-
--   I have considered one trial, `r test_trial`
-
--   Despite the high correlation of `r round(unique(test$cor),2)` calculated weight was higher except for 2 cases
-
-- This difference ranged between `r min(test$diff)` - `r max(test$diff)`
 
 ---
 
-```{r}
-p
+- curate with `pbwrangler` & `st4gi`
+
+```r
+names(season_a) <- sub("_[^_]+$", "", names(season_a))
+
+
+# join meta data and data
+
+season_out<- join_data_meta(data_lst = season_a, meta_lst = meta_lst)
+
+
+season_out <- pre_process_trials(season_out) %>% 
+  process_trials()
 ```
 
+---
+
+- Write out curated data
+
+```r
+write_season_data(season_out, season = season)
+```
+
+
+# Experimental design
+
+- Load libraries
+
+```r
+if(!require(pbwrangler)) devtools::install_github("Bokola/pbwrangler")
+
+library(purrr)
+library(ids)
+library(pbwrangler)
+library(readxl)
+library(writexl)
+library(dplyr)
+library(readr)
+library(tidyverse)
+
+# set file parameters
+
+season <- "Season 2024-2025"
+season_to_rand <- "Season 2025"
+sub_dir <- "Seed inventory"
+pat <- "tuber seed"
+sheet <- "seed inventory"
+```
+---
+
+- Load designs from seed inventory file
+
+```r
+# get seeds and design data
+f <- list.files(file.path(t_dir, season, sub_dir),
+                pattern = pat, full.names = TRUE)
+seed <- read_excel(f, sheet = sheet)
+
+# get designs
+
+df_design <- read_excel(f, sheet = "design", skip = 24) %>% 
+  filter(!is.na(trial)) %>% filter(!is.na(design)) #%>%
+  # filter(grepl("UON-EA21-AT", trial))
+
+# get trials already randomized
+
+randomized <- list.files(
+  file.path(t_dir, season_to_rand, "FieldBook"), pattern = ".xlsx"
+) %>% clean_dir_name_c()
+
+df_design <- df_design %>% filter(trial %nin% randomized)
+```
+---
+
+- Randomize: example of row-col design
+
+```r
+# row-col design
+
+rowcol_design <- df_design %>% filter(., grepl("rowcol", design)) %>% filter(
+  rep > 1
+)
+
+for(i in seq_len(nrow(rowcol_design))){
+  d <- rowcol_design[i,]
+  if(grepl("^EA", d$source)){
+    df_clones <- ea21 %>% select(geno)
+  } else if(grepl("BIO", d$source)){
+    df_clones <- bio %>% select(geno)
+  } else if(grepl("\\bbw\\b", d$source)) {
+    df_clones <- bw
+  } else if(grepl("\\bbw_60\\b", d$source)){
+    df_clones <- bw_60
+  } else{
+    df_clones <- seed_lst[[d$source]] %>% select(geno)
+  }
+
+  checks <- str_split(d$check, pattern = ",", simplify = T)[1,] %>% 
+    trimws()
+  dummy <-   check <- str_split(d$dummy, pattern = ",", simplify = T)[1,] %>% 
+    trimws()
+  
+  rowcolD <-   randomize_row_col(
+    clones = df_clones,
+    trial = d$trial,
+    tot = d$tot,
+    rowD = d$rowD,
+    # rowD = 6,
+    rowsinR = d$rowsinR,
+    # rowsinR = 6,
+    colsinR = d$colsinR,
+    # colsinR = 5,
+    check = checks,
+    dummy = dummy,
+    n_dummies = d$n_dummies,
+    to_add = d$to_add,
+    rep = d$rep,
+    path = t_dir,
+    season = season_to_rand
+  )
+
+}
+```
+
+---
+
+All matrials on [github](https://github.com/Bokola/cip_ke). You can clone.
 
