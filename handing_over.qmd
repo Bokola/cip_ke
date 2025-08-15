@@ -1,0 +1,147 @@
+---
+title: "SG data report"
+format: 
+  revealjs:
+    embed-resources: true
+    menu:
+      slide: left
+editor: visual
+editor_options: 
+  chunk_output_type: console
+params:
+  season: "Season 2024-2025"
+---
+
+```{r}
+#| label: setup
+#| include: false
+#| cache: false
+
+knitr::opts_chunk$set(fig.pos = 'H')
+
+if (!require(glmsummary)) devtools::install_github("Bokola/glmsummary")
+if (!require(pbwrangler)) devtools::install_github("Bokola/pbwrangler")
+pks <- c(
+  "pbwrangler",
+  "rlang",
+  "glue",
+  "tidyverse",
+  "readxl",
+  "janitor",
+  "here",
+  "gtsummary",
+  "kableExtra",
+  "gt",
+  "flextable",
+  "officer",
+  "cowplot"
+  ,"flextable"
+  ,"kableExtra"
+  ,"officer"
+)
+install_load_packages(pks)
+
+data("family_code")
+
+table_counter <- 1
+# table captions
+autonum <- run_autonum(seq_id = "tab", bkm = "cip")
+```
+
+```{r}
+# change depending on season of interest
+# season <- "Season 2024-2025"
+
+```
+
+```{r}
+meta_24_25 <- read_excel(
+  list.files(file.path(t_dir, "Season 2024-2025", "Data", "meta-data"), full.names = TRUE)
+)
+
+meta_24_25_lst <- split(meta_24_25, meta_24_25$trial_name)
+
+season_24_25_a <- pbwrangler::read_workbooks(
+  dir = t_dir,
+  season = "Season 2024-2025",
+  read_subfolder = TRUE,
+  sub_folder = "Received data",
+  subset = TRUE,
+  n = c(1, 4:9, 12),
+  # n = 12,
+  multiple = TRUE,
+  merge = TRUE
+)
+
+season_24_25_b <- pbwrangler::read_workbooks(
+  dir = t_dir,
+  season = "Season 2024-2025",
+  read_subfolder = TRUE,
+  sub_folder = "Received data",
+  subset = TRUE,
+  n = c(2, 10:11),
+  # n = 3,
+  multiple = FALSE,
+  merge = FALSE
+)
+
+season_24_25 <- c(season_24_25_a, season_24_25_b)
+
+test_trial <- c("KE24NJO-BIO-IT01")
+
+# calculated 
+
+season_24_25_c<- pbwrangler::read_workbooks(
+  dir = t_dir,
+  season = "Season 2024-2025",
+  read_subfolder = TRUE,
+  sub_folder = "Received data/SG-calculated",
+  subset = FALSE,
+  # n = c(2, 10:11),
+  # n = 3,
+  multiple = FALSE,
+  merge = FALSE
+)
+
+test_a <- season_24_25[[test_trial]] %>% select(plot, weight_g_total)
+test_b <- season_24_25_c[[test_trial]] %>% 
+  select(plot, "weight_g_total_c"= weight_g_total)
+
+test <- left_join(test_a, test_b)
+test <- test %>% mutate(
+  cor = cor(weight_g_total, weight_g_total_c),
+  diff = weight_g_total_c - weight_g_total
+)
+test <- test %>% mutate(ind = diff > 0)
+caption <- paste0("cor: ", round(unique(test$cor),2))
+title <- "Weight diffence (g)"
+ p <- test %>% ggplot(aes(x = plot, y = diff, fill = ind)) + geom_col() +
+   scale_y_continuous(breaks = seq(-1000, 4000, 1000)) +
+   ylab("calculated - observed (weight)")
+ 
+ p <- my_theme(plot = p,
+               caption = caption,
+               title = title,
+               legend_pos = "off") +
+   theme(axis.title.x=element_blank(),
+         axis.text.x=element_blank(),
+         axis.ticks.x=element_blank())
+```
+
+
+
+# Updates
+
+-   I have considered one trial, `r test_trial`
+
+-   Despite the high correlation of `r round(unique(test$cor),2)` calculated weight was higher except for 2 cases
+
+- This difference ranged between `r min(test$diff)` - `r max(test$diff)`
+
+---
+
+```{r}
+p
+```
+
+

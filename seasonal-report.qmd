@@ -1,0 +1,421 @@
+---
+# header-includes:
+  # - \usepackage{float}
+  # - \floatplacement{figure}{H}  #make every figure with caption = h, this was the fix
+format: 
+  html:
+    code-fold: true
+    toc: true
+    toc-depth: 3
+    highlight-style: github
+    embed-resources: true
+  docx:
+    toc: false
+    toc-depth: 3
+    number-sections: true
+    highlight-style: github
+  pdf:
+    toc: false
+    toc-depth: 3
+    fig-pos: 'H'
+  # PrettyPDF-pdf:
+  #   keep-tex: true
+format-links: true
+editor: visual
+execute: 
+    echo: false
+    warning: false
+    cache: false
+editor_options: 
+  chunk_output_type: console
+#filters: 
+ #- doc-landscape.lua
+params:
+  season: "Season 2024-2025"
+title: '`r paste0("A report on potato field trials conducted in Kenya for ", params$season)`'
+---
+
+```{r}
+#| label: setup
+#| include: false
+#| cache: false
+
+knitr::opts_chunk$set(fig.pos = 'H')
+
+if (!require(glmsummary)) devtools::install_github("Bokola/glmsummary")
+if (!require(pbwrangler)) devtools::install_github("Bokola/pbwrangler")
+pks <- c(
+  "pbwrangler",
+  "rlang",
+  "glue",
+  "tidyverse",
+  "readxl",
+  "janitor",
+  "here",
+  "gtsummary",
+  "kableExtra",
+  "gt",
+  "flextable",
+  "officer",
+  "cowplot"
+  ,"flextable"
+  ,"kableExtra"
+  ,"officer"
+)
+install_load_packages(pks)
+
+data("family_code")
+
+table_counter <- 1
+# table captions
+autonum <- run_autonum(seq_id = "tab", bkm = "cip")
+```
+
+```{r}
+# change depending on season of interest
+# season <- "Season 2024-2025"
+
+```
+
+```{r}
+# data and meta-data
+meta <- read_workbooks(
+  season = params$season,
+  read_subfolder = TRUE,
+  sub_folder = "Data/meta-data",
+  update_plot = FALSE,
+  subset = TRUE,
+  n = 1
+) %>% reduce(., data.frame)
+
+# data
+
+meta_lst <- split(meta, meta$trial_name)
+
+df_lst1 <- pbwrangler::read_workbooks(
+  dir = t_dir,
+  season = params$season,
+  read_subfolder = TRUE,
+  sub_folder = "Received data",
+  subset = TRUE,
+  n = c(1, 4:9, 12),
+  # n = 12,
+  multiple = TRUE,
+  merge = TRUE
+)
+
+df_lst2 <- pbwrangler::read_workbooks(
+  dir = t_dir,
+  season = params$season,
+  read_subfolder = TRUE,
+  sub_folder = "Received data",
+  subset = TRUE,
+  n = c(2, 10:11),
+  # n = 3,
+  multiple = FALSE,
+  merge = FALSE
+)
+
+df_lst <- c(df_lst1, df_lst2)
+
+# join meta data and data
+
+df_lst <- join_data_meta(data_lst = df_lst, meta_lst = meta_lst) %>%
+  pre_process_trials(.) %>% 
+  process_trials(.)
+
+# weather
+weather <- c(1,4:12)
+df_w <- pbwrangler::read_workbooks(
+  dir = t_dir,
+  season = params$season,
+  read_subfolder = TRUE,
+  sub_folder = "Received data",
+  subset = TRUE,
+  n = weather,
+  # n = 3,
+  multiple = FALSE,
+  sheet_name = "weather",
+  merge = FALSE,
+  update_plot = FALSE
+)
+
+df_w <- join_data_meta(data_lst = df_w, meta_lst = meta_lst)
+vars <-
+  c('date_time_eat',
+    'temperature_c',
+    'rh_percent',
+    'dew_point_c',
+    'location')
+df_w <- lapply(df_w, function(x){
+  x %>% dplyr::select(any_of(vars))
+}) %>% reduce(., bind_rows) 
+
+df_w1 <- df_w %>%
+  dplyr::mutate(.,
+  month = format(date_time_eat, "%b-%Y"),
+  date = as_date(date_time_eat)
+)
+
+df_w_summ <- df_w1 %>%  
+  dplyr::select(temperature = temperature_c,
+                dew_point = dew_point_c, rh = rh_percent, everything()) %>%
+  group_by(location, date) %>%
+  summarize(across(.cols=where(is.numeric), list(mean = mean)))
+```
+
+```{r}
+#| include: false
+
+max_geno_loc <- lapply(df_lst, function(x) length(unique(x$geno)))  %>% which.max()
+min_geno_loc <- lapply(df_lst, function(x) length(unique(x$geno)))  %>% which.min()
+
+lapply(df_lst, function(x) length(unique(x$geno)))[[max_geno_loc]]
+max_geno_location <- lapply(df_lst[names(max_geno_loc)], function(x) unique(x$loc)) %>%
+  reduce(., c) %>% as.character()
+
+max_geno_trialtype <- lapply(meta_lst[names(max_geno_loc)], function(x) x$trial_type) %>%
+  reduce(., c)
+paste(unique(meta$design_type), collapse = ", ")
+
+meta_out <- meta %>% filter(!grepl("dus", trial_name, ignore.case = TRUE))
+meta_out$unique_genotypes <- lapply(df_lst, function(x) length(unique(x$geno)))  %>% reduce(., c)
+```
+
+# Introduction
+
+During `r params$season` we conducted `r length(df_lst)` field trials in `r lapply(df_lst, function(x) unique(x$loc)) %>% unname() %>% unlist() %>% unique() %>% length()` locations, the largest of these trials being in `r max_geno_location` having `r lapply(df_lst, function(x) length(unique(x$geno)))[[max_geno_loc]]` genotypes which was a(n) `r max_geno_trialtype`. Our field design of choice included `r paste(unique(meta$design_type), collapse = ", ")` designs. A detailed summary is in the following table. The resulting data are currently being curated for uploading into breedbase.
+
+```{r}
+#| label: tbl-tab_1
+#| tbl-cap: !expr paste0("Summary of trials for ", params$season)
+tab1 <- meta_out %>% dplyr::select(
+  trial_name, location, design_type, trial_type, unique_genotypes
+)
+names(tab1) <- gsub("_", " ", names(tab1))
+tab <- flextable::flextable(tab1) 
+# gt(sn24_out)
+
+kable(tab1) %>% kable_styling(full_width = FALSE, position = "center") #%>%
+  # pack_rows(index = c("first planting season" = 5, "second planting season" = 8))
+  # collapse_rows(latex_hline = "major") #%>% 
+  # row_spec(1:5, extra_css = "border-bottom-style: none")
+
+table_counter <- table_counter + 1
+```
+
+Our trial locations are mostly in the Rift Valley and Nairobi as in @fig-loc.
+
+```{r, out.width="150%"}
+#| label: fig-loc
+#| fig-cap: Distribution of trial locations in Kenya
+#| fig-width: 8
+#| fig-height: 8
+knitr::include_graphics("loc2.png")
+```
+
+# Data summaries
+
+## Tested families
+
+```{r}
+#| label: tbl-fam
+#| tbl-cap: Frequency of the families in the advanced trial pipelines for reporting period
+# names(season_2024_out) <-  c(
+#   "Molo", "Njoro-1", "UoN-1", "Njoro-2", "UoN-2"
+# )
+# season_2024_out <- capture_location(season_2024_out)
+
+df <- lapply(df_lst, function(x) x[,c("trial_name", "geno")])  %>% 
+  reduce(., bind_rows)
+
+df <- df %>% mutate(
+  new_family_code = gen_familycode(geno)
+)
+
+df_geno <- df %>% select(trial_name, geno, new_family_code) %>% left_join(
+  family_code %>% select(new_family_code, female, male)
+) %>% filter(!is.na(female))
+
+# count family code after grouping 
+
+tab_geno <- df_geno %>% select(
+  new_family_code, female, male
+) %>% group_by(new_family_code) %>% summarize(count = n()) %>%
+  left_join(
+    df_geno %>% select(-geno)
+  ) %>% select(family = new_family_code, female, male, count) %>% arrange(desc(count)) %>% 
+  distinct() 
+
+tab2 <- tab_geno %>% kable() %>% kable_styling(full_width = FALSE, position = "center") 
+tab2
+
+table_counter <- table_counter + 1
+```
+
+For `r params$season` the trials run tested `r length(unique(tab_geno$family))` families as shown in @tbl-fam.
+
+## Summary Statistics
+
+A descriptive summary of select phenotypes is presented in @tbl-tab_sum. Take note of the trials in Molo and UoN-2 that were mostly vegetative and did not capture most of the yield data.
+
+```{r}
+df_yield <- df_lst[!grepl("ST", names(df_lst), ignore.case = TRUE)] 
+df_yield <- lapply(
+  df_yield, function(x){
+    x[, c("trial_name", "geno", "mtwp", 'nmtp', 'atmw', "mtyna","ttyna",  "tbfsh1", "tbskn1")]
+  }
+) %>% reduce(., bind_rows) %>% mutate(., family = gen_familycode(geno)) 
+  
+```
+
+```{r}
+#| label: tbl-tab_sum
+#| tbl-cap: "Descriptive statistics of select phenotypes by trial"
+label_list <- list(
+  mtwp ~ "Marketable tuber \nweight per plot in kg",
+  nmtp ~ 	"Number of marketable\n tubers per plot",
+  atmw ~ "Average marketable\n tuber weight in g",
+  mtyna ~ "Marketable tuber\n yield not adjusted\n in tons per ha",
+  tbfsh1 ~ "flesh colour",
+  tbskn1 ~ "skin colour"
+)
+tab_sum <- df_yield |> 
+  select(
+    trial_name, mtwp, nmtp, atmw,mtyna,  tbfsh1, tbskn1, 
+  ) |> tbl_summary(
+    by = trial_name,
+    type = list(
+      c("mtwp", "nmtp", "atmw", "mtyna") ~ "continuous",
+      c("tbfsh1", 'tbskn1') ~ "categorical"
+    ),
+    sort = list(
+      all_categorical() ~ "frequency"
+    ),
+    missing = "no",
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})"
+    )
+    ,label = label_list
+  ) |>
+   add_overall(
+    last = FALSE
+  ) |> add_n() |>
+  # add_p(test = list(
+  #   all_categorical() ~ "chisq.test",
+  #   all_continuous() ~ "t.test"
+  # )) |>
+  # bold_p() |>
+   bold_labels() |>
+  italicize_levels() |>
+   # modify_caption(paste0(
+   #   "Table ", table_counter, ": Socio-demographic characteristics of health workers by cadre"
+   # )) |>
+
+  # as_gt()
+  # kable_styling()
+ as_flex_table() |>
+      set_caption(
+   paste0(
+    "Table ", table_counter, ": Descriptive statistics of select phenotypes by trial"
+  ),
+   style = "Table Caption",
+   autonum = autonum
+ ) %>% set_table_properties(layout = "autofit")
+  # as_kable_extra() %>%
+  # kable_styling(latex_options = "scale_down")
+
+
+tab_sum
+```
+
+## Top yielding families
+
+@tbl-mtyna1 shows the top performing families with highest mean marketable tuber weight per plot for the two trials reporting yield data.
+
+```{r}
+df_mtyna <- df_yield  %>%
+  select(family, trial_name, mtyna) %>% group_by(trial_name, family) %>% summarize(`mean mtyna` = mean(mtyna, na.rm = TRUE)) %>% arrange(desc(`mean mtyna`))
+
+names(df_mtyna) <- gsub("_", " ", names(df_mtyna))
+
+df_mtyna%>% slice(1:10)-> df_mtyna1
+df_mtyna2<- df_mtyna%>% arrange(`mean mtyna`) %>% slice(1:10)
+```
+
+```{r}
+#| label: tbl-mtyna1
+#| tbl-cap: "Top 10 performing families at each of the two trial locations" 
+kable(df_mtyna1) %>% kable_styling(full_width = FALSE, position = "center") %>% collapse_rows(latex_hline = "major")
+```
+
+## Least yielding families
+
+Least performing families are presented in @tbl-mtyna2
+
+```{r}
+#| label: tbl-mtyna2
+#| tbl-cap: "Bottom 10 performing families at each of the two trial locations" 
+kable(df_mtyna2) %>% kable_styling(full_width = FALSE, position = "center") %>% collapse_rows(latex_hline = "major")
+```
+
+## Prevailing weather conditions during the season
+
+This section reports recorded temperature and humidity logged by HOBO data loggers.
+
+```{r}
+#| label: fig-tmp
+#| fig-cap: Mean temperature
+#| fig-width: 8
+#| fig-height: 8
+
+plot_weather()
+
+```
+
+```{r}
+#| label: fig-dew
+#| fig-cap: Mean dew point
+#| fig-width: 8
+#| fig-height: 8
+
+plot_weather(var = "dew_point_mean")
+
+
+```
+
+```{r}
+#| label: fig-rh
+#| fig-cap: Mean relative humidity as %
+#| fig-width: 8
+#| fig-height: 8
+
+plot_weather(var = "rh_mean")
+
+```
+
+# Apendix
+
+## Design layout
+
+We present example layouts of the designs we used for `r params$season`. First is a pRep design layout, while the second is a row-col design.
+
+```{r}
+#| label: fig-prep
+#| fig-cap: pRep design
+#| fig-width: 8
+#| fig-height: 8
+knitr::include_graphics(
+ "njoro-24-25-lbht.png"
+)
+```
+
+```{r}
+#| label: fig-rowcol
+#| fig-cap: rowcol design
+#| fig-width: 8
+#| fig-height: 8
+knitr::include_graphics(
+ "biofort-ilri.png"
+)
+```
