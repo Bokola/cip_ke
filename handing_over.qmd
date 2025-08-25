@@ -1,5 +1,5 @@
 ---
-title: "Handing over"
+title: "Progress Report"
 format: 
   revealjs:
     embed-resources: true
@@ -10,9 +10,43 @@ editor_options:
   chunk_output_type: console
 ---
 
-# Data curation
 
-- You need to have a filled-in meta-data excel file within `Data/` folder of specific season
+# Structure
+
+- Workflow
+- Data curation
+- Experimental design
+- Reports, BLUEs, BLUPs
+
+## Workflow
+
+- Uses `{pbwrangler}` R package available on [github](https://bokola.github.io/pbwrangler/reference/index.html)
+
+
+- For curation: [read_workbooks](https://bokola.github.io/pbwrangler/reference/read_workbooks.html) to read phenotyic data
+- [pre_process_trials](https://bokola.github.io/pbwrangler/reference/pre_process_trials.html) by running transformations & checks
+- [process_trials](https://bokola.github.io/pbwrangler/reference/process_trials.html): checks for full curation
+- [write_season_data](https://bokola.github.io/pbwrangler/reference/write_season_data.html) to write out curated data
+
+---
+
+
+- Design: Uses one of the `randomize_*` functions
+    
+    - [randomize_row_col](https://bokola.github.io/pbwrangler/reference/randomize_row_col.html) for resolvable row column design
+    - [rand_Prep](https://bokola.github.io/pbwrangler/reference/rand_Prep.html) for partially replicated design
+    - [randomize_noRep](https://bokola.github.io/pbwrangler/reference/randomize_noRep.html) for material multiplication
+
+
+
+
+## Data curation
+
+- Kenya data organized in seasons e,g., `Season 2025`
+- curated `season 2024-2025` and `season 2025` (vegetative & fieldbooks)
+- Required: meta-data excel file within `Data/` folder of specific season & data
+
+---
 
 - Load necessary libraries
 
@@ -86,7 +120,7 @@ write_season_data(season_out, season = season)
 ```
 
 
-# Experimental design
+## Experimental design
 
 - Load libraries
 
